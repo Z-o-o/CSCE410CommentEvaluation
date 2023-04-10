@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+from torch.utils.data import Dataset
 
 
 class Question:
@@ -37,12 +38,13 @@ def itemize_data(filename):
                                 answers=[], tags=row['question_tags'],
                                 body=row['question_body'],
                                 accepted_answer=None)
-        answer = Answer(answer_id=row['answer_id'], parent_question_id=row['answer_parent_id'], score=row['score'], body=row['answer_body'])
+        answer = Answer(answer_id=row['answer_id'], parent_question_id=row['answer_parent_id'], score=row['score'],
+                        body=row['answer_body'])
         try:
             if answer.answer_id == row['question_accepted_answer_id']:
                 question.accepted_answer = answer
         except:
-            #print(f"unable to compare {answer.answer_id} and {row['question_accepted_answer_id']}")
+            # print(f"unable to compare {answer.answer_id} and {row['question_accepted_answer_id']}")
             continue
         question.answers.append(answer)
         current_qa_pointer = row
@@ -57,6 +59,25 @@ def rank_answers(all_questions):
 
     return all_questions
 
-python_data = itemize_data('data/python_database.pkl')
-ranked = rank_answers(python_data)
 
+class QADataset(Dataset):
+
+    def __init__(self, questions):
+        self.questions = questions
+
+    def __len__(self):
+        return len(self.questions)
+
+    def __getitem__(self, item):
+        question = self.questions[item]
+        ranked_questions = dict()
+        for answer in question.answers:
+            ranked_questions[answer.body] = answer.score
+        sample = {'question_body': question.body, 'ranked_answers': ranked_questions}
+        return sample
+
+
+python_data = itemize_data('data/python_database.pkl')
+ranked_python = rank_answers(python_data)
+python_dataset = QADataset(ranked_python)
+print(python_dataset.__getitem__(0))
