@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 from torch.utils.data import Dataset
+import numpy as np
 
 
 class Question:
@@ -11,6 +12,8 @@ class Question:
         self.tags = tags
         self.body = body
         self.accepted_answer = accepted_answer
+        self.good_answers = []
+        self.bad_answers = []
 
 
 class Answer:
@@ -58,6 +61,18 @@ def rank_answers(all_questions):
         question.answers = sorted(question.answers, key=lambda x: x.score, reverse=True)
 
     return all_questions
+
+
+def get_pos_neg_answers(all_questions):
+    for question in all_questions:
+        scores = [x.score for x in question.answers]
+        if len(question.answers) > 1:
+            upper_percentile = scores[0] * 0.75
+            for answer in question.answers:
+                if answer.score >= upper_percentile:
+                    question.good_answers.append(answer)
+                else:
+                    question.bad_answers.append(answer)
 
 
 class QADataset(Dataset):
