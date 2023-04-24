@@ -81,8 +81,6 @@ def evaluate(model, test_data):
 
     test = custom_dataset.CustomDataset(test_data)
     test_dataloader = torch.utils.data.DataLoader(test, batch_size=2)
-    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -109,6 +107,7 @@ def evaluate(model, test_data):
     
 
 def predict(model, text):
+    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     text_dict = tokenizer(text, padding='max_length', max_length = 512, truncation=True, return_tensors="pt")
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -119,13 +118,12 @@ def predict(model, text):
     with torch.no_grad():
         output = model(input_id, mask)
         label_id = output.argmax(dim=1).item()
-        for key in labels.keys():
-            if labels[key] == label_id:
+        for key in custom_dataset.labels.keys():
+            if custom_dataset.labels[key] == label_id:
                 print(text, ' => ',key, '#' ,label_id)
                 break
-    and you can call it like this:
-    model.eval()
-    predict(model, text='Christiano Ronaldo scored 2 goals in last Manchester United game')
+    #model.eval()
+    #predict(model, text='Christiano Ronaldo scored 2 goals in last Manchester United game')
                 
 if __name__ == "__main__":
     # TODO: combine all datasets and split them properly
