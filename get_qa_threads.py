@@ -17,6 +17,7 @@ class Answer:
         self.answer_id = answer_id
         self.parent_question_id = parent_question_id
         self.score = score
+        self.label = ""
         self.body = body
 
 
@@ -24,7 +25,7 @@ def itemize_data(filename):
     all_questions = []
     python_db = pd.read_pickle(filename)
     # Remove all questions that have 0 answers
-    python_db = python_db[python_db.question_answer_count != 0]
+    python_db = python_db[python_db.question_answer_count > 1]
     current_qa_pointer = python_db.iloc[0]
     question = Question(question_id=current_qa_pointer['question_id'], title=current_qa_pointer['question_title'],
                         answers=[], tags=current_qa_pointer['question_tags'], body=current_qa_pointer['question_body'],
@@ -42,11 +43,12 @@ def itemize_data(filename):
             if answer.answer_id == row['question_accepted_answer_id']:
                 question.accepted_answer = answer
         except:
-            #print(f"unable to compare {answer.answer_id} and {row['question_accepted_answer_id']}")
-            continue
+            pass
         question.answers.append(answer)
         current_qa_pointer = row
     all_questions.append(question)
+    rank_answers(all_questions)
+    get_pos_neg_answers(all_questions)
 
     return all_questions
 
@@ -57,6 +59,22 @@ def rank_answers(all_questions):
 
     return all_questions
 
-python_data = itemize_data('data/python_database.pkl')
-ranked = rank_answers(python_data)
-
+def get_pos_neg_answers(all_questions):
+    for question in all_questions:
+        scores = [x.score for x in question.answers]
+        if len(question.answers) > 1:
+            upper_percentile = scores[0] * 0.50
+            for answer in question.answers:
+                if answer.score >= upper_percentile:
+                    answer.label = "good"
+                else:
+                    answer.label = "bad"
+                    
+def convert_data_to_df(data):
+    df_list = []
+    for q in data:
+        for a in q.answers:
+            df_list.append({'text': f"{q.body}-{a.body}", 'label':f"{a.label}"})
+        
+    df = pd.DataFrame(df_list)
+    return df
