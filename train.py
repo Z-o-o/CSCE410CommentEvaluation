@@ -2,8 +2,7 @@ from torch.optim import Adam
 from tqdm import tqdm
 from torch import nn
 from torch import nn
-from transformers import BertModel
-from transformers import BertTokenizer
+from evaluate import evaluate
 import torch
 import numpy as np
 import pandas as pd
