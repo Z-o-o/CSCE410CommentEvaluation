@@ -2,20 +2,27 @@ import torch
 import numpy as np
 from transformers import BertTokenizer
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-labels = {
-            'good': 0,
-            'bad': 1
-         }
+tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
+labels = {"good": 0, "bad": 1}
+
 
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, data):
-        self.labels = [labels[label] for label in data['label']]
-        self.text = [tokenizer(text, padding='max_length', max_length=512, truncation=True, return_tensors="pt") for text in data['text']]
+        self.labels = [labels[label] for label in data["label"]]
+        self.text = [
+            tokenizer(
+                text,
+                padding="max_length",
+                max_length=512,
+                truncation=True,
+                return_tensors="pt",
+            )
+            for text in data["text"]
+        ]
 
     def classes(self):
         return self.labels
-    
+
     def __len__(self):
         return len(self.labels)
 
@@ -28,9 +35,7 @@ class CustomDataset(torch.utils.data.Dataset):
         return self.text[idx]
 
     def __getitem__(self, idx):
-
         batch_texts = self.get_batch_texts(idx)
         batch_y = self.get_batch_labels(idx)
 
         return batch_texts, batch_y
-
