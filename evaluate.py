@@ -9,9 +9,9 @@ import custom_dataset
 import model
 
 
-def evaluate(model, test_data):
+def evaluate(model, test_data, filename):
     test = custom_dataset.CustomDataset(test_data)
-    test_dataloader = torch.utils.data.DataLoader(test, batch_size=2)
+    test_dataloader = torch.utils.data.DataLoader(test, batch_size=2, shuffle=False)
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -21,15 +21,24 @@ def evaluate(model, test_data):
 
     CM = 0
     model.eval()
-    with torch.no_grad():
-        for test_input, test_label in test_dataloader:
-            test_label = test_label.to(device)
-            mask = test_input["attention_mask"].to(device)
-            input_id = test_input["input_ids"].squeeze(1).to(device)
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("text,ground_truth,prediction\n")
+        with torch.no_grad():
+            i = 0
+            for test_input, test_label in test_dataloader:
+                test_label = test_label.to(device)
+                mask = test_input["attention_mask"].to(device)
+                input_id = test_input["input_ids"].squeeze(1).to(device)
 
-            outputs = model(input_id, mask)
-            preds = torch.argmax(outputs.data, dim=1)
-            CM += confusion_matrix(test_label.cpu(), preds.cpu(), labels=[0, 1])
+                outputs = model(input_id, mask)
+                preds = torch.argmax(outputs.data, dim=1)
+                CM += confusion_matrix(test_label.cpu(), preds.cpu(), labels=[0, 1])
+                ground_truth = torch.max(test_label)
+                prediction = torch.max(preds)
+                text = test_data.iloc[[i]]["text"].values[0]
+                text = text.strip().replace(",", "").replace("\n", "")
+                f.write(f"{text},{ground_truth},{prediction}\n")
+                i += 1
 
         tn = CM[1][1]
         tp = CM[0][0]
@@ -78,6 +87,6 @@ if __name__ == "__main__":
     df_val = pd.concat([py_val, math_val, design_val])
     df_test = pd.concat([py_test, math_test, design_test])
     print("Starting Test Evaluation")
-    evaluate(custom_model, df_test)
+    evaluate(custom_model, df_test, "test_output.csv")
     print("Starting Val Evaluation")
-    evaluate(custom_model, df_val)
+    evaluate(custom_model, df_val, "val_output.csv")
