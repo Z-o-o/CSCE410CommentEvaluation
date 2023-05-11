@@ -1,3 +1,4 @@
+import time
 import torch
 import custom_dataset
 import pandas as pd
@@ -19,10 +20,12 @@ def evaluate(model, test_data, filename):
     if use_cuda:
         model = model.cuda()
 
+
+
     CM = 0
     model.eval()
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write("text,ground_truth,prediction\n")
+    with open(f'{filename}-1.csv', "w", encoding="utf-8") as f:  
+        f.write("ground_truth,prediction,probability\n")
         with torch.no_grad():
             i = 0
             for test_input, test_label in test_dataloader:
@@ -31,13 +34,20 @@ def evaluate(model, test_data, filename):
                 input_id = test_input["input_ids"].squeeze(1).to(device)
 
                 outputs = model(input_id, mask)
+                probs = torch.nn.functional.softmax(outputs.data, dim=1)
                 preds = torch.argmax(outputs.data, dim=1)
                 CM += confusion_matrix(test_label.cpu(), preds.cpu(), labels=[0, 1])
-                ground_truth = torch.max(test_label)
-                prediction = torch.max(preds)
-                text = test_data.iloc[[i]]["text"].values[0]
-                text = text.strip().replace(",", "").replace("\n", "")
-                f.write(f"{text},{ground_truth},{prediction}\n")
+                # ground_truth = torch.max(test_label)
+                # prediction = torch.max(preds)
+                # probability = torch.max(probs)
+                # text = test_data.iloc[[i]]["text"].values[0]
+                # text = text.strip().replace(",", "").replace("\n", "")
+                # f.write(f"{text},{ground_truth},{prediction},{probability}\n")
+                for j in range(0, len(preds.cpu())):
+                    ground_truth = test_label[j]
+                    prediction = preds[j]
+                    probability = probs[j].cpu().numpy()[0]
+                    f.write(f"{ground_truth},{prediction},{probability}\n")
                 i += 1
 
         tn = CM[1][1]
@@ -59,7 +69,8 @@ def evaluate(model, test_data, filename):
         print(
             "- F1 : ", ((2 * sensitivity * precision) / (sensitivity + precision)) * 100
         )
-        print()
+        # out_df.to_csv(filename, index=False)
+        print(f'Final i={i}\n')
 
 
 if __name__ == "__main__":
@@ -83,10 +94,18 @@ if __name__ == "__main__":
         [int(0.8 * len(design_df)), int(0.9 * len(design_df))],
     )
     custom_model = model.BertClassifier()
+    custom_model.load_state_dict(torch.load("test-model.pth"))
     # df_train = pd.concat([py_train, math_train, design_train])
     df_val = pd.concat([py_val, math_val, design_val])
     df_test = pd.concat([py_test, math_test, design_test])
+    start_time = time.time()
     print("Starting Test Evaluation")
-    evaluate(custom_model, df_test, "test_output.csv")
+    evaluate(custom_model, df_test, "test_output")
+    end_time = time.time()
+    print(f"Runtime: {(end_time - start_time)}s\n")
+
+    start_time = time.time()
     print("Starting Val Evaluation")
-    evaluate(custom_model, df_val, "val_output.csv")
+    evaluate(custom_model, df_val, "val_output")
+    end_time = time.time()
+    print(f"Runtime: {(end_time - start_time)}s\n")
