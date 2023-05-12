@@ -2,7 +2,8 @@ import torch
 import custom_dataset
 import pandas as pd
 import numpy as np
-from sklearn.metrics import confusion_matrix
+import sklearn.metrics
+from matplotlib import pyplot as plt
 
 import get_qa_threads
 import custom_dataset
@@ -20,6 +21,8 @@ def evaluate(model, test_data, filename):
         model = model.cuda()
 
     CM = 0
+    y_true = []
+    y_pred = []
     model.eval()
     with open(filename, "w", encoding="utf-8") as f:
         f.write("text,ground_truth,prediction\n")
@@ -32,7 +35,13 @@ def evaluate(model, test_data, filename):
 
                 outputs = model(input_id, mask)
                 preds = torch.argmax(outputs.data, dim=1)
-                CM += confusion_matrix(test_label.cpu(), preds.cpu(), labels=[0, 1])
+                probs = torch.nn.functional.softmax(outputs, dim=1)
+                conf, _ = torch.max(probs, 1)
+                y_true = np.append(y_true, torch.max(test_label.cpu()))
+                y_pred = np.append(y_pred, conf.max().item())
+                CM += sklearn.metrics.confusion_matrix(
+                    test_label.cpu(), preds.cpu(), labels=[0, 1]
+                )
                 ground_truth = torch.max(test_label)
                 prediction = torch.max(preds)
                 text = test_data.iloc[[i]]["text"].values[0]
@@ -60,6 +69,7 @@ def evaluate(model, test_data, filename):
             "- F1 : ", ((2 * sensitivity * precision) / (sensitivity + precision)) * 100
         )
         print()
+        return y_true, y_pred
 
 
 if __name__ == "__main__":
@@ -83,10 +93,28 @@ if __name__ == "__main__":
         [int(0.8 * len(design_df)), int(0.9 * len(design_df))],
     )
     custom_model = model.BertClassifier()
+    custom_model.load_state_dict(torch.load("first-model.pth"))
     # df_train = pd.concat([py_train, math_train, design_train])
-    df_val = pd.concat([py_val, math_val, design_val])
+    # df_val = pd.concat([py_val, math_val, design_val])
     df_test = pd.concat([py_test, math_test, design_test])
     print("Starting Test Evaluation")
-    evaluate(custom_model, df_test, "test_output.csv")
-    print("Starting Val Evaluation")
-    evaluate(custom_model, df_val, "val_output.csv")
+    trained_true, trained_pred = evaluate(
+        custom_model, df_test, "trained_test_output.csv"
+    )
+    del custom_model
+    custom_model = model.BertClassifier()
+    untrained_true, untrained_pred = evaluate(
+        custom_model, df_test, "untrained_test_output.csv"
+    )
+
+    # RocCurveDisplay.from_predictions(y_true, y_pred, pos_label=0)
+    fpr, tpr, _ = sklearn.metrics.roc_curve(trained_true, trained_pred, pos_label=0)
+    auc = round(sklearn.metrics.roc_auc_score(trained_true, trained_pred), 4)
+    plt.plot(fpr, tpr, label="Trained, AUC=" + str(auc))
+
+    fpr, tpr, _ = sklearn.metrics.roc_curve(untrained_true, untrained_pred, pos_label=0)
+    auc = round(sklearn.metrics.roc_auc_score(untrained_true, untrained_pred), 4)
+    plt.plot(fpr, tpr, label="Untrained, AUC=" + str(auc))
+    plt.legend()
+
+    plt.savefig("roc_curve.png")
